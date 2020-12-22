@@ -1,7 +1,16 @@
 package main
 
+/*
+#include <qplugin.h>
+Q_IMPORT_PLUGIN(QOffscreenIntegrationPlugin)
+Q_IMPORT_PLUGIN(QJpegPlugin)
+Q_IMPORT_PLUGIN(QGifPlugin)
+*/
+
 import (
 	"os"
+
+	"C"
 
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
@@ -11,6 +20,7 @@ import (
 )
 
 func main() {
+	os.Setenv("QT_QPA_PLATFORM", "offscreen")
 
 	app := widgets.NewQApplication(len(os.Args), os.Args)
 
