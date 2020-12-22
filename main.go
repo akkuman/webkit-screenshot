@@ -12,7 +12,7 @@ func main() {
 
 	app := widgets.NewQApplication(len(os.Args), os.Args)
 
-	wk.GetSnapshot("https://www.baidu.com", 1920, 1080)
+	wk.GetSnapshot("https://ti.dbappsecurity.com.cn", 1920, 1080)
 
 	app.Exec()
 }
