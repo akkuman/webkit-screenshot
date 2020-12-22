@@ -1,0 +1,1 @@
+QT_WEBKIT=true qtdeploy build desktop main.go
