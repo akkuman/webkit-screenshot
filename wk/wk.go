@@ -2,6 +2,7 @@ package wk
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
@@ -9,11 +10,45 @@ import (
 	"github.com/therecipe/qt/webkit"
 )
 
-// GetSnapshot get a snapshot for website
-func GetSnapshot(url string, width, height int) {
-	imgQuality := 50
-	imgFormat := "jpg"
-	userAgent := "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.75.14 (KHTML, like Gecko) Version/7.0.3 Safari/7046A194A"
+// ScreenshotConfig screenshot config
+type ScreenshotConfig struct {
+	ID      string
+	URL     string
+	Width   int
+	Height  int
+	Quality int
+	Format  string
+	UA      string
+}
+
+// ScreenshotObject qt object
+type ScreenshotObject struct {
+	core.QObject
+
+	_ func(config ScreenshotConfig) `signal:"startScreenshot,auto"`
+	_ func(id string, data []byte)  `signal:"finishScreenshot,auto"`
+
+	Map sync.Map
+}
+
+// StartScreenshot start screenshot slots
+func (s *ScreenshotObject) startScreenshot(config ScreenshotConfig) {
+	s.GetScreenshot(config)
+}
+
+// FinishScreenshot finish screenshot slots and store data to map
+func (s *ScreenshotObject) finishScreenshot(id string, data []byte) {
+	s.Map.Store(id, data)
+}
+
+// GetScreenshot get a snapshot for website
+func (s *ScreenshotObject) GetScreenshot(config ScreenshotConfig) {
+	url := config.URL
+	width := config.Width
+	height := config.Height
+	imgQuality := config.Quality
+	imgFormat := config.Format
+	userAgent := config.UA
 	page := webkit.NewQWebPage(nil)
 
 	networkAccessManager := network.NewQNetworkAccessManager(page)
@@ -69,6 +104,7 @@ func GetSnapshot(url string, width, height int) {
 		buff.Open(core.QIODevice__ReadWrite)
 		image.Save2(buff, "jpg", 50)
 		data := []byte(buff.Data().ConstData())
+		s.FinishScreenshot(config.ID, data)
 		fmt.Println(data)
 		// res["data"] = data
 	})
