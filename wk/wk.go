@@ -1,13 +1,14 @@
 package wk
 
 import (
-	"fmt"
+	"os"
 	"sync"
 
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/network"
 	"github.com/therecipe/qt/webkit"
+	"github.com/therecipe/qt/widgets"
 )
 
 // ScreenshotConfig screenshot config
@@ -21,28 +22,43 @@ type ScreenshotConfig struct {
 	UA      string
 }
 
+// FinishCallbackFunc will pass the screenshot data to the callback func when finish screenshot
+type FinishCallbackFunc func([]byte)
+
 // ScreenshotObject qt object
 type ScreenshotObject struct {
 	core.QObject
 
-	_ func(config ScreenshotConfig) `signal:"startScreenshot,auto"`
-	_ func(id string, data []byte)  `signal:"finishScreenshot,auto"`
-
-	Map sync.Map
+	_ func(config ScreenshotConfig, finishCallbacks []FinishCallbackFunc) `signal:"StartScreenshot"`
 }
 
-// StartScreenshot start screenshot slots
-func (s *ScreenshotObject) startScreenshot(config ScreenshotConfig) {
-	s.GetScreenshot(config)
+// Loader the screenshot loader
+type Loader struct {
+	*ScreenshotObject
+
+	app *widgets.QApplication
+	Map *sync.Map
 }
 
-// FinishScreenshot finish screenshot slots and store data to map
-func (s *ScreenshotObject) finishScreenshot(id string, data []byte) {
-	s.Map.Store(id, data)
+// NewLoader create a loader
+func NewLoader() *Loader {
+	os.Setenv("QT_QPA_PLATFORM", "offscreen")
+
+	app := widgets.NewQApplication(len(os.Args), os.Args)
+
+	var sm sync.Map
+
+	l := &Loader{NewScreenshotObject(nil), app, &sm}
+
+	l.ConnectStartScreenshot(func(config ScreenshotConfig, finishCallbacks []FinishCallbackFunc) {
+		l.GetScreenshot(config, finishCallbacks)
+	})
+
+	return l
 }
 
 // GetScreenshot get a snapshot for website
-func (s *ScreenshotObject) GetScreenshot(config ScreenshotConfig) {
+func (l *Loader) GetScreenshot(config ScreenshotConfig, finishCallbacks []FinishCallbackFunc) {
 	url := config.URL
 	width := config.Width
 	height := config.Height
@@ -56,8 +72,6 @@ func (s *ScreenshotObject) GetScreenshot(config ScreenshotConfig) {
 		reply.IgnoreSslErrors()
 	})
 	page.SetNetworkAccessManager(networkAccessManager)
-
-	page.Settings().SetAttribute(webkit.QWebSettings__WebSecurityEnabled, true)
 
 	setAttributes(page.Settings())
 
@@ -75,6 +89,7 @@ func (s *ScreenshotObject) GetScreenshot(config ScreenshotConfig) {
 	page.MainFrame().Load(qURL)
 
 	page.ConnectLoadFinished(func(bool) {
+		// networkAccessManager.DeleteLater() must be executed after page.DeleteLater()
 		defer networkAccessManager.DeleteLater()
 		defer page.DeleteLater()
 		defer qSize.DestroyQSize()
@@ -87,10 +102,7 @@ func (s *ScreenshotObject) GetScreenshot(config ScreenshotConfig) {
 		defer qPaintDevice.DestroyQPaintDeviceDefault()
 		painter.Begin(qPaintDevice)
 
-		painter.SetRenderHint(gui.QPainter__Antialiasing, true)
-		painter.SetRenderHint(gui.QPainter__TextAntialiasing, true)
-		painter.SetRenderHint(gui.QPainter__HighQualityAntialiasing, true)
-		painter.SetRenderHint(gui.QPainter__SmoothPixmapTransform, true)
+		setPainterRenderHint(painter)
 
 		qRegion := gui.NewQRegion2(0, 0, width, height, gui.QRegion__Rectangle)
 		defer qRegion.DestroyQRegion()
@@ -104,10 +116,20 @@ func (s *ScreenshotObject) GetScreenshot(config ScreenshotConfig) {
 		buff.Open(core.QIODevice__ReadWrite)
 		image.Save2(buff, "jpg", 50)
 		data := []byte(buff.Data().ConstData())
-		s.FinishScreenshot(config.ID, data)
-		fmt.Println(data)
-		// res["data"] = data
+		// asynchronous call the finish callback function
+		if finishCallbacks != nil {
+			go func() {
+				for i := range finishCallbacks {
+					finishCallbacks[i](data)
+				}
+			}()
+		}
 	})
+}
+
+// Exec execute qt app main event loop
+func (l *Loader) Exec() {
+	l.app.Exec()
 }
 
 // ClearCaches clear webkit memory cache
@@ -148,4 +170,12 @@ func setAttributes(settings *webkit.QWebSettings) {
 	settings.SetAttribute(webkit.QWebSettings__OfflineStorageDatabaseEnabled, false)
 	settings.SetAttribute(webkit.QWebSettings__OfflineWebApplicationCacheEnabled, false)
 	settings.SetAttribute(webkit.QWebSettings__WebSecurityEnabled, true)
+}
+
+// setPainterRenderHint set RenderHint for painter
+func setPainterRenderHint(painter *gui.QPainter) {
+	painter.SetRenderHint(gui.QPainter__Antialiasing, true)
+	painter.SetRenderHint(gui.QPainter__TextAntialiasing, true)
+	painter.SetRenderHint(gui.QPainter__HighQualityAntialiasing, true)
+	painter.SetRenderHint(gui.QPainter__SmoothPixmapTransform, true)
 }

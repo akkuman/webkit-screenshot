@@ -1,24 +1,20 @@
 package main
 
 import (
-	"os"
+	"fmt"
 
 	"github.com/akkuman/webkit-screenshot/wk"
-	"github.com/therecipe/qt/widgets"
 )
 
 func main() {
-	os.Setenv("QT_QPA_PLATFORM", "offscreen")
+	loader := wk.NewLoader()
 
-	app := widgets.NewQApplication(len(os.Args), os.Args)
-	screenshotObj := wk.NewScreenshotObject(nil)
+	go screenshot(loader, "https://www.baidu.com")
 
-	go screenshot(screenshotObj, "https://www.baidu.com")
-
-	app.Exec()
+	loader.Exec()
 }
 
-func screenshot(obj *wk.ScreenshotObject, url string) {
+func screenshot(loader *wk.Loader, url string) {
 	config := wk.ScreenshotConfig{
 		ID:      "xxxx",
 		URL:     url,
@@ -28,5 +24,14 @@ func screenshot(obj *wk.ScreenshotObject, url string) {
 		Format:  "jpg",
 		UA:      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.75.14 (KHTML, like Gecko) Version/7.0.3 Safari/7046A194A",
 	}
-	obj.StartScreenshot(config)
+	dataChan := make(chan []byte)
+	var finishCallbacks []wk.FinishCallbackFunc
+	finishCallback := wk.FinishCallbackFunc(func(data []byte) {
+		dataChan <- data
+		close(dataChan)
+	})
+	finishCallbacks = append(finishCallbacks, finishCallback)
+	loader.StartScreenshot(config, finishCallbacks)
+	screenshotBytes := <-dataChan
+	fmt.Println(screenshotBytes)
 }
