@@ -1,7 +1,6 @@
 package wk
 
 import (
-	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -255,7 +254,6 @@ func (l *Loader) GetScreenshot(config *ScreenshotConfig) {
 
 		qRegion := gui.NewQRegion2(0, 0, width, height, gui.QRegion__Rectangle)
 		defer qRegion.DestroyQRegion()
-		fmt.Println(page.MainFrame().ToHtml())
 		page.MainFrame().Render(painter, qRegion)
 		painter.End()
 
@@ -289,7 +287,6 @@ func (l *Loader) Screenshot(config *ScreenshotConfig) []byte {
 	config.ResultHandlers = append([]ResultHandler{fChanGetResult}, config.ResultHandlers...)
 	l.StartScreenshot(config)
 	screenshotBytes := <-dataChan
-	fmt.Println(screenshotBytes)
 	return screenshotBytes
 }
 
