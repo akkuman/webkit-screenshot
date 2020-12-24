@@ -3,6 +3,7 @@ package wk
 import (
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/therecipe/qt/core"
@@ -81,13 +82,13 @@ func (c *ScreenshotConfig) WithTimeout(timeout time.Duration) *ScreenshotConfig 
 }
 
 // RegisterWebFrameHandler register a WebFrameHandler to handlers
-func (c *ScreenshotConfig) RegisterWebFrameHandler(f WebFrameHandler) {
-	c.WebFrameHandlers = append(c.WebFrameHandlers, f)
+func (c *ScreenshotConfig) RegisterWebFrameHandler(funcs ...WebFrameHandler) {
+	c.WebFrameHandlers = append(c.WebFrameHandlers, funcs...)
 }
 
 // RegisterResultHandler register a ResultHandler to handlers
-func (c *ScreenshotConfig) RegisterResultHandler(f ResultHandler) {
-	c.ResultHandlers = append(c.ResultHandlers, f)
+func (c *ScreenshotConfig) RegisterResultHandler(funcs ...ResultHandler) {
+	c.ResultHandlers = append(c.ResultHandlers, funcs...)
 }
 
 // FinishCallbackFunc will pass the screenshot data to the callback func when finish screenshot
@@ -276,11 +277,13 @@ func (l *Loader) GetScreenshot(config *ScreenshotConfig) {
 func (l *Loader) Screenshot(config *ScreenshotConfig) []byte {
 	dataChan := make(chan []byte)
 	// use the channel to synchronously get result
+	once := new(sync.Once)
 	fChanGetResult := ResultHandler(func(data []byte) {
-		go func() {
+		// avoid multiple calls that cause panic(send on closed chan)
+		once.Do(func() {
 			dataChan <- data
 			close(dataChan)
-		}()
+		})
 	})
 	// insert the callback to head for getting result first and returnning
 	config.ResultHandlers = append([]ResultHandler{fChanGetResult}, config.ResultHandlers...)
