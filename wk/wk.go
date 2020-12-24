@@ -23,6 +23,55 @@ type ScreenshotConfig struct {
 	Timeout time.Duration
 }
 
+// NewScreenshotConfig create a ScreenshotConfig
+func NewScreenshotConfig(url string) *ScreenshotConfig {
+	return &ScreenshotConfig{
+		URL:     url,
+		Width:   1920,
+		Height:  1080,
+		Quality: 50,
+		Format:  "jpg",
+		UA:      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.75.14 (KHTML, like Gecko) Version/7.0.3 Safari/7046A194A",
+		Timeout: 20 * time.Second,
+	}
+}
+
+// WithWidth set width
+func (c *ScreenshotConfig) WithWidth(width int) *ScreenshotConfig {
+	c.Width = width
+	return c
+}
+
+// WithHeight set height
+func (c *ScreenshotConfig) WithHeight(height int) *ScreenshotConfig {
+	c.Height = height
+	return c
+}
+
+// WithQuality set quality
+func (c *ScreenshotConfig) WithQuality(quality int) *ScreenshotConfig {
+	c.Quality = quality
+	return c
+}
+
+// WithFormat set format
+func (c *ScreenshotConfig) WithFormat(foramt string) *ScreenshotConfig {
+	c.Format = foramt
+	return c
+}
+
+// WithUA set request useragent
+func (c *ScreenshotConfig) WithUA(ua string) *ScreenshotConfig {
+	c.UA = ua
+	return c
+}
+
+// WithTimeout set request timeout
+func (c *ScreenshotConfig) WithTimeout(timeout time.Duration) *ScreenshotConfig {
+	c.Timeout = timeout
+	return c
+}
+
 // FinishCallbackFunc will pass the screenshot data to the callback func when finish screenshot
 type FinishCallbackFunc func([]byte)
 
@@ -197,6 +246,23 @@ func (l *Loader) GetScreenshot(config ScreenshotConfig, finishCallbacks []Finish
 			}
 		}
 	})
+}
+
+// Screenshot get a website screenshot and return data
+func (l *Loader) Screenshot(config ScreenshotConfig) []byte {
+	dataChan := make(chan []byte)
+	var finishCallbacks []FinishCallbackFunc
+	finishCallback := FinishCallbackFunc(func(data []byte) {
+		go func() {
+			dataChan <- data
+			close(dataChan)
+		}()
+	})
+	finishCallbacks = append(finishCallbacks, finishCallback)
+	l.StartScreenshot(config, finishCallbacks)
+	screenshotBytes := <-dataChan
+	fmt.Println(screenshotBytes)
+	return screenshotBytes
 }
 
 // Exec execute qt app main event loop
