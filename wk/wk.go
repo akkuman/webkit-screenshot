@@ -213,6 +213,12 @@ func (l *Loader) GetScreenshot(config *ScreenshotConfig) {
 	})
 	page.SetNetworkAccessManager(networkAccessManager)
 
+	// set transparent background
+	palette := page.Palette()
+	qBrush := gui.NewQBrush4(core.Qt__transparent, core.Qt__SolidPattern)
+	palette.SetBrush(gui.QPalette__Base, qBrush)
+	page.SetPalette(palette)
+
 	setAttributes(page.Settings())
 
 	page.MainFrame().SetScrollBarPolicy(core.Qt__Horizontal, core.Qt__ScrollBarAlwaysOff)
@@ -256,8 +262,6 @@ func (l *Loader) GetScreenshot(config *ScreenshotConfig) {
 		defer qRegion.DestroyQRegion()
 		page.MainFrame().Render(painter, qRegion)
 		painter.End()
-
-		image.Save("test.jpg", imgFormat, imgQuality)
 
 		buff := core.NewQBuffer(nil)
 		defer buff.DeleteLater()
@@ -329,10 +333,14 @@ func setAttributes(settings *webkit.QWebSettings) {
 	settings.SetAttribute(webkit.QWebSettings__AcceleratedCompositingEnabled, false)
 	settings.SetAttribute(webkit.QWebSettings__TiledBackingStoreEnabled, false)
 
-	settings.SetAttribute(webkit.QWebSettings__LocalStorageEnabled, false)
-	settings.SetAttribute(webkit.QWebSettings__OfflineStorageDatabaseEnabled, false)
-	settings.SetAttribute(webkit.QWebSettings__OfflineWebApplicationCacheEnabled, false)
-	settings.SetAttribute(webkit.QWebSettings__WebSecurityEnabled, true)
+	settings.SetAttribute(webkit.QWebSettings__LocalStorageEnabled, true)
+	settings.SetAttribute(webkit.QWebSettings__OfflineStorageDatabaseEnabled, true)
+	settings.SetAttribute(webkit.QWebSettings__OfflineWebApplicationCacheEnabled, true)
+	settings.SetAttribute(webkit.QWebSettings__WebSecurityEnabled, false)
+
+	settings.SetAttribute(webkit.QWebSettings__FrameFlatteningEnabled, true)
+	settings.SetOfflineStorageDefaultQuota(1024)
+	settings.SetMaximumPagesInCache(10)
 }
 
 // setPainterRenderHint set RenderHint for painter
