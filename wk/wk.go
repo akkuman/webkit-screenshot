@@ -1,8 +1,9 @@
 package wk
 
 import (
+	"fmt"
 	"os"
-	"sync"
+	"time"
 
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
@@ -13,13 +14,13 @@ import (
 
 // ScreenshotConfig screenshot config
 type ScreenshotConfig struct {
-	ID      string
 	URL     string
 	Width   int
 	Height  int
 	Quality int
 	Format  string
 	UA      string
+	Timeout time.Duration
 }
 
 // FinishCallbackFunc will pass the screenshot data to the callback func when finish screenshot
@@ -32,12 +33,72 @@ type ScreenshotObject struct {
 	_ func(config ScreenshotConfig, finishCallbacks []FinishCallbackFunc) `signal:"StartScreenshot"`
 }
 
+// NetworkAccessManager QNetworkAccessManager with timeout
+// reference:
+//   - phantomjs/src/networkaccessmanager.cpp:createRequest
+//   - phantomjs/src/networkaccessmanager.cpp:handleTimeout
+//   - https://www.cnblogs.com/apocelipes/p/9361690.html
+type NetworkAccessManager struct {
+	network.QNetworkAccessManager
+
+	_ func() `constructor:"init"`
+
+	Timeout time.Duration
+
+	errorHandlers []func(code network.QNetworkReply__NetworkError)
+}
+
+func (m *NetworkAccessManager) init() {
+	m.ConnectCreateRequest(m.createRequest)
+	m.ConnectSslErrors(m.sslErrors)
+}
+
+// createRequest connect CreateRequest to implement timeout abort feature
+func (m *NetworkAccessManager) createRequest(op network.QNetworkAccessManager__Operation, originalReq *network.QNetworkRequest, outgoingData *core.QIODevice) *network.QNetworkReply {
+	reply := m.QNetworkAccessManager.CreateRequestDefault(op, originalReq, outgoingData)
+	// Use the registered error handler to handle QNetworkReply__NetworkError when they occur
+	reply.ConnectError2(func(code network.QNetworkReply__NetworkError) {
+		for i := range m.errorHandlers {
+			m.errorHandlers[i](code)
+		}
+	})
+	if reply != nil {
+		go func() {
+			if m.Timeout <= 0 {
+				return
+			}
+			timeout := time.After(m.Timeout)
+			select {
+			case <-timeout:
+				reply.Abort()
+			}
+		}()
+	}
+	return reply
+}
+
+// sslErrors ignore ssl error
+func (m *NetworkAccessManager) sslErrors(reply *network.QNetworkReply, errors []*network.QSslError) {
+	reply.IgnoreSslErrors()
+}
+
+// registerErrorHandler register handler which hanlde QNetworkReply__NetworkError
+func (m *NetworkAccessManager) registerErrorHandler(handler func(code network.QNetworkReply__NetworkError)) {
+	m.errorHandlers = append(m.errorHandlers, handler)
+}
+
+// NewNetworkAccessManagerWithTimeout create a NetworkAccessManager instance from timeout
+func NewNetworkAccessManagerWithTimeout(parent core.QObject_ITF, timeout time.Duration) *NetworkAccessManager {
+	networkAccessManager := NewNetworkAccessManager(parent)
+	networkAccessManager.Timeout = timeout
+	return networkAccessManager
+}
+
 // Loader the screenshot loader
 type Loader struct {
 	*ScreenshotObject
 
 	app *widgets.QApplication
-	Map *sync.Map
 }
 
 // NewLoader create a loader
@@ -46,9 +107,7 @@ func NewLoader() *Loader {
 
 	app := widgets.NewQApplication(len(os.Args), os.Args)
 
-	var sm sync.Map
-
-	l := &Loader{NewScreenshotObject(nil), app, &sm}
+	l := &Loader{NewScreenshotObject(nil), app}
 
 	l.ConnectStartScreenshot(func(config ScreenshotConfig, finishCallbacks []FinishCallbackFunc) {
 		l.GetScreenshot(config, finishCallbacks)
@@ -65,11 +124,21 @@ func (l *Loader) GetScreenshot(config ScreenshotConfig, finishCallbacks []Finish
 	imgQuality := config.Quality
 	imgFormat := config.Format
 	userAgent := config.UA
+	timeout := config.Timeout
 	page := webkit.NewQWebPage(nil)
+	// indicate whether an error occurred that req is canceled
+	isCancelReqError := false
 
-	networkAccessManager := network.NewQNetworkAccessManager(page)
-	networkAccessManager.ConnectSslErrors(func(reply *network.QNetworkReply, errors []*network.QSslError) {
-		reply.IgnoreSslErrors()
+	networkAccessManager := NewNetworkAccessManagerWithTimeout(page, timeout)
+	networkAccessManager.registerErrorHandler(func(code network.QNetworkReply__NetworkError) {
+		if code == network.QNetworkReply__OperationCanceledError {
+			isCancelReqError = true
+			if finishCallbacks != nil {
+				for i := range finishCallbacks {
+					finishCallbacks[i](nil)
+				}
+			}
+		}
 	})
 	page.SetNetworkAccessManager(networkAccessManager)
 
@@ -94,6 +163,10 @@ func (l *Loader) GetScreenshot(config ScreenshotConfig, finishCallbacks []Finish
 		defer page.DeleteLater()
 		defer qSize.DestroyQSize()
 		defer qURL.DestroyQUrl()
+		// if req is canceled, return
+		if isCancelReqError {
+			return
+		}
 		image := gui.NewQImage3(width, height, gui.QImage__Format_RGB888)
 		defer image.DestroyQImageDefault()
 		painter := gui.NewQPainter()
@@ -106,6 +179,7 @@ func (l *Loader) GetScreenshot(config ScreenshotConfig, finishCallbacks []Finish
 
 		qRegion := gui.NewQRegion2(0, 0, width, height, gui.QRegion__Rectangle)
 		defer qRegion.DestroyQRegion()
+		fmt.Println(page.MainFrame().ToHtml())
 		page.MainFrame().Render(painter, qRegion)
 		painter.End()
 
@@ -114,15 +188,13 @@ func (l *Loader) GetScreenshot(config ScreenshotConfig, finishCallbacks []Finish
 		buff := core.NewQBuffer(nil)
 		defer buff.DeleteLater()
 		buff.Open(core.QIODevice__ReadWrite)
-		image.Save2(buff, "jpg", 50)
+		image.Save2(buff, imgFormat, imgQuality)
 		data := []byte(buff.Data().ConstData())
-		// asynchronous call the finish callback function
+		// synchronous call the finish callback function
 		if finishCallbacks != nil {
-			go func() {
-				for i := range finishCallbacks {
-					finishCallbacks[i](data)
-				}
-			}()
+			for i := range finishCallbacks {
+				finishCallbacks[i](data)
+			}
 		}
 	})
 }
