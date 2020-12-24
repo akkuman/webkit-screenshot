@@ -13,7 +13,7 @@ func main() {
 
 	config := wk.NewScreenshotConfig(url)
 
-	go loader.Screenshot(*config)
+	go loader.Screenshot(config)
 
 	loader.Exec()
 }

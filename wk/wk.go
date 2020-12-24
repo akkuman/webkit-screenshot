@@ -12,15 +12,23 @@ import (
 	"github.com/therecipe/qt/widgets"
 )
 
+// WebFrameHandler handle QWebFrame
+type WebFrameHandler func(*webkit.QWebFrame)
+
+// ResultHandler will pass the screenshot data to the callback func when finish screenshot
+type ResultHandler func([]byte)
+
 // ScreenshotConfig screenshot config
 type ScreenshotConfig struct {
-	URL     string
-	Width   int
-	Height  int
-	Quality int
-	Format  string
-	UA      string
-	Timeout time.Duration
+	URL              string
+	Width            int
+	Height           int
+	Quality          int
+	Format           string
+	UA               string
+	Timeout          time.Duration
+	WebFrameHandlers []WebFrameHandler // handle QWebFrame when QWebPage Load finish
+	ResultHandlers   []ResultHandler   // handle data when QWebPage scrennshot finish
 }
 
 // NewScreenshotConfig create a ScreenshotConfig
@@ -72,6 +80,16 @@ func (c *ScreenshotConfig) WithTimeout(timeout time.Duration) *ScreenshotConfig 
 	return c
 }
 
+// RegisterWebFrameHandler register a WebFrameHandler to handlers
+func (c *ScreenshotConfig) RegisterWebFrameHandler(f WebFrameHandler) {
+	c.WebFrameHandlers = append(c.WebFrameHandlers, f)
+}
+
+// RegisterResultHandler register a ResultHandler to handlers
+func (c *ScreenshotConfig) RegisterResultHandler(f ResultHandler) {
+	c.ResultHandlers = append(c.ResultHandlers, f)
+}
+
 // FinishCallbackFunc will pass the screenshot data to the callback func when finish screenshot
 type FinishCallbackFunc func([]byte)
 
@@ -79,7 +97,7 @@ type FinishCallbackFunc func([]byte)
 type ScreenshotObject struct {
 	core.QObject
 
-	_ func(config ScreenshotConfig, finishCallbacks []FinishCallbackFunc) `signal:"StartScreenshot"`
+	_ func(config *ScreenshotConfig) `signal:"StartScreenshot"`
 }
 
 // NetworkAccessManager QNetworkAccessManager with timeout
@@ -87,6 +105,7 @@ type ScreenshotObject struct {
 //   - phantomjs/src/networkaccessmanager.cpp:createRequest
 //   - phantomjs/src/networkaccessmanager.cpp:handleTimeout
 //   - https://www.cnblogs.com/apocelipes/p/9361690.html
+//   - https://github.com/therecipe/examples/blob/master/advanced/widgets/tableview/main.go
 type NetworkAccessManager struct {
 	network.QNetworkAccessManager
 
@@ -158,15 +177,15 @@ func NewLoader() *Loader {
 
 	l := &Loader{NewScreenshotObject(nil), app}
 
-	l.ConnectStartScreenshot(func(config ScreenshotConfig, finishCallbacks []FinishCallbackFunc) {
-		l.GetScreenshot(config, finishCallbacks)
+	l.ConnectStartScreenshot(func(config *ScreenshotConfig) {
+		l.GetScreenshot(config)
 	})
 
 	return l
 }
 
 // GetScreenshot get a snapshot for website
-func (l *Loader) GetScreenshot(config ScreenshotConfig, finishCallbacks []FinishCallbackFunc) {
+func (l *Loader) GetScreenshot(config *ScreenshotConfig) {
 	url := config.URL
 	width := config.Width
 	height := config.Height
@@ -174,6 +193,8 @@ func (l *Loader) GetScreenshot(config ScreenshotConfig, finishCallbacks []Finish
 	imgFormat := config.Format
 	userAgent := config.UA
 	timeout := config.Timeout
+	webFrameHandlers := config.WebFrameHandlers
+	resultHandlers := config.ResultHandlers
 	page := webkit.NewQWebPage(nil)
 	// indicate whether an error occurred that req is canceled
 	isCancelReqError := false
@@ -181,11 +202,12 @@ func (l *Loader) GetScreenshot(config ScreenshotConfig, finishCallbacks []Finish
 	networkAccessManager := NewNetworkAccessManagerWithTimeout(page, timeout)
 	networkAccessManager.registerErrorHandler(func(code network.QNetworkReply__NetworkError) {
 		if code == network.QNetworkReply__OperationCanceledError {
+			// when timeout error occur(cancel request)
+			// 1. set the isCancelReqError indicate that req is canceled(timeout)
+			// 2. call the ResultHandler with nil
 			isCancelReqError = true
-			if finishCallbacks != nil {
-				for i := range finishCallbacks {
-					finishCallbacks[i](nil)
-				}
+			for i := range resultHandlers {
+				resultHandlers[i](nil)
 			}
 		}
 	})
@@ -216,6 +238,10 @@ func (l *Loader) GetScreenshot(config ScreenshotConfig, finishCallbacks []Finish
 		if isCancelReqError {
 			return
 		}
+		// handle the QWebFrame
+		for i := range webFrameHandlers {
+			webFrameHandlers[i](page.MainFrame())
+		}
 		image := gui.NewQImage3(width, height, gui.QImage__Format_RGB888)
 		defer image.DestroyQImageDefault()
 		painter := gui.NewQPainter()
@@ -240,26 +266,25 @@ func (l *Loader) GetScreenshot(config ScreenshotConfig, finishCallbacks []Finish
 		image.Save2(buff, imgFormat, imgQuality)
 		data := []byte(buff.Data().ConstData())
 		// synchronous call the finish callback function
-		if finishCallbacks != nil {
-			for i := range finishCallbacks {
-				finishCallbacks[i](data)
-			}
+		for i := range resultHandlers {
+			resultHandlers[i](data)
 		}
 	})
 }
 
 // Screenshot get a website screenshot and return data
-func (l *Loader) Screenshot(config ScreenshotConfig) []byte {
+func (l *Loader) Screenshot(config *ScreenshotConfig) []byte {
 	dataChan := make(chan []byte)
-	var finishCallbacks []FinishCallbackFunc
-	finishCallback := FinishCallbackFunc(func(data []byte) {
+	// use the channel to synchronously get result
+	fChanGetResult := ResultHandler(func(data []byte) {
 		go func() {
 			dataChan <- data
 			close(dataChan)
 		}()
 	})
-	finishCallbacks = append(finishCallbacks, finishCallback)
-	l.StartScreenshot(config, finishCallbacks)
+	// insert the callback to head for getting result first and returnning
+	config.ResultHandlers = append([]ResultHandler{fChanGetResult}, config.ResultHandlers...)
+	l.StartScreenshot(config)
 	screenshotBytes := <-dataChan
 	fmt.Println(screenshotBytes)
 	return screenshotBytes
