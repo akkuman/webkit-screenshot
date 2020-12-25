@@ -12,6 +12,8 @@ import (
 	"github.com/therecipe/qt/widgets"
 )
 
+var _BlankHTML = "<html><head></head><body></body></html>"
+
 // WebFrameHandler handle QWebFrame
 type WebFrameHandler func(*webkit.QWebFrame)
 
@@ -180,6 +182,8 @@ func NewLoader() *Loader {
 	l.ConnectStartScreenshot(func(config *ScreenshotConfig) {
 		l.GetScreenshot(config)
 	})
+	// globalSettings must be placed after ScreenshotObject created
+	globalSettings()
 
 	return l
 }
@@ -197,27 +201,32 @@ func (l *Loader) GetScreenshot(config *ScreenshotConfig) {
 	resultHandlers := config.ResultHandlers
 	page := webkit.NewQWebPage(nil)
 	// indicate whether an error occurred that req is canceled
-	isCancelReqError := false
+	isReqOccurError := false
 
 	networkAccessManager := NewNetworkAccessManagerWithTimeout(page, timeout)
 	networkAccessManager.registerErrorHandler(func(code network.QNetworkReply__NetworkError) {
-		if code == network.QNetworkReply__OperationCanceledError {
+		// ignore error when page html is not blank
+		// because other resource is loaded after main frame html loaded
+		if page.MainFrame().ToHtml() != _BlankHTML {
+			return
+		}
+		if code == network.QNetworkReply__OperationCanceledError ||
+			code == network.QNetworkReply__RemoteHostClosedError ||
+			code == network.QNetworkReply__SslHandshakeFailedError ||
+			code == network.QNetworkReply__UnknownNetworkError {
 			// when timeout error occur(cancel request)
-			// 1. set the isCancelReqError indicate that req is canceled(timeout)
-			// 2. call the ResultHandler with nil
-			isCancelReqError = true
-			for i := range resultHandlers {
-				resultHandlers[i](nil)
-			}
+			// 1. set the isReqOccurError indicate that req is canceled(timeout)
+			isReqOccurError = true
 		}
 	})
 	page.SetNetworkAccessManager(networkAccessManager)
 
 	// set transparent background
-	palette := page.Palette()
-	qBrush := gui.NewQBrush4(core.Qt__transparent, core.Qt__SolidPattern)
-	palette.SetBrush(gui.QPalette__Base, qBrush)
-	page.SetPalette(palette)
+	// palette := page.Palette()
+	// qBrush := gui.NewQBrush4(core.Qt__transparent, core.Qt__SolidPattern)
+	// defer qBrush.DestroyQBrush()
+	// palette.SetBrush(gui.QPalette__Base, qBrush)
+	// page.SetPalette(palette)
 
 	setAttributes(page.Settings())
 
@@ -240,8 +249,12 @@ func (l *Loader) GetScreenshot(config *ScreenshotConfig) {
 		defer page.DeleteLater()
 		defer qSize.DestroyQSize()
 		defer qURL.DestroyQUrl()
-		// if req is canceled, return
-		if isCancelReqError {
+
+		// if req occur error, return
+		if isReqOccurError {
+			for i := range resultHandlers {
+				resultHandlers[i](nil)
+			}
 			return
 		}
 		// handle the QWebFrame
@@ -301,7 +314,16 @@ func (l *Loader) Exec() {
 
 // ClearCaches clear webkit memory cache
 func ClearCaches() {
+	webkit.QWebSettings_ClearIconDatabase()
 	webkit.QWebSettings_ClearMemoryCaches()
+}
+
+func globalSettings() {
+	settings := webkit.QWebSettings_GlobalSettings()
+	settings.SetMaximumPagesInCache(0)
+	settings.SetObjectCacheCapacities(0, 0, 0)
+	settings.SetOfflineStorageDefaultQuota(0)
+	settings.SetOfflineWebApplicationCacheQuota(0)
 }
 
 // setAttributes sets web page attributes
@@ -339,8 +361,6 @@ func setAttributes(settings *webkit.QWebSettings) {
 	settings.SetAttribute(webkit.QWebSettings__WebSecurityEnabled, false)
 
 	settings.SetAttribute(webkit.QWebSettings__FrameFlatteningEnabled, true)
-	settings.SetOfflineStorageDefaultQuota(1024)
-	settings.SetMaximumPagesInCache(10)
 }
 
 // setPainterRenderHint set RenderHint for painter
