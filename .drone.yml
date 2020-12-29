@@ -1,0 +1,71 @@
+kind: pipeline
+type: docker
+name: webkit-screenshot
+
+# 自定义工作区
+workspace:
+  path: /drone/src
+
+environment:
+  QT_WEBKIT: true
+
+steps:
+
+- name: restore-cache # 把之前缓存好的数据取出
+  image: drillster/drone-volume-cache
+  settings:
+    restore: true
+    mount: # 缓存挂载的文件夹
+      - ./.golang-cache
+  volumes:
+    - name: cache
+      path: /cache
+
+- name: build
+  image: therecipe/qt:linux_ubuntu_16_04
+  commands:
+    # 恢复缓存目录
+    - cp -r .golang-cache/* ${HOME}/work/src/
+    # 构建
+    - go get -d -v github.com/OneOfOne/xxhash
+    - go get -d -v github.com/corona10/goimagehash
+    - go get -d -v gorm.io/gorm
+    - go get -d -v gorm.io/driver/sqlite
+    - mkdir -p ${HOME}/work/src/github.com/akkuman/webkit-screenshot
+    - pwd
+    - cp * ${HOME}/work/src/github.com/akkuman/webkit-screenshot/
+    - cd ${HOME}/work/src/github.com/akkuman/webkit-screenshot
+    - qtdeploy build desktop main.go
+    - tar zcvf webkit-screenshot.tar.gz ~/work/src/github.com/akkuman/webkit-screenshot/deploy
+    - cp webkit-screenshot.tar.gz /drone/src/
+    - cd /drone/src
+    # 创建缓存目录
+    - mkdir .golang-cache
+    - cp -r ${HOME}/work/src/* .golang-cache/
+
+- name: gitea_release
+  image: plugins/gitea-release
+  settings:
+    api_key:
+      from_secret: gitea_token
+    base_url: http://git.ah-strategy.online
+    files: /drone/src/webkit-screenshot.tar.gz
+    title: webkit-screenshot
+  when:
+    event: tag
+
+- name: rebuild-cache # 把依赖和 npm 缓存放到缓存里
+  image: drillster/drone-volume-cache
+  settings:
+    rebuild: true
+    mount:
+      - ~/work/src
+  volumes:
+    - name: cache
+      path: /cache
+
+# 声明并挂载缓存文件夹，宿主机的路径为 /tmp/cache，需要设置 Project settings 为 Trusted
+volumes:
+- name: cache
+  host:
+    path: /tmp/cache
