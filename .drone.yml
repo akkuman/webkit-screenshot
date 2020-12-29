@@ -22,9 +22,10 @@ steps:
       path: /cache
 
 - name: build
-  image: therecipe/qt:linux_ubuntu_16_04
+  image: therecipe/qt:linux_fedora
   commands:
     # 恢复缓存目录
+    - mkdir -p .golang-cache
     - cp -r .golang-cache/* ${HOME}/work/src/
     # 构建
     - go get -d -v github.com/OneOfOne/xxhash
