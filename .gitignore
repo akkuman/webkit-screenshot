@@ -2,3 +2,5 @@ deploy
 linux
 *.jpg
 wk/moc*
+.history
+screenshots

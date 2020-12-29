@@ -246,7 +246,6 @@ func (l *Loader) GetScreenshot(config *ScreenshotConfig) {
 	page.ConnectLoadFinished(func(bool) {
 		// networkAccessManager.DeleteLater() must be executed after page.DeleteLater()
 		defer networkAccessManager.DeleteLater()
-		defer page.DeleteLater()
 		defer qSize.DestroyQSize()
 		defer qURL.DestroyQUrl()
 
@@ -255,6 +254,7 @@ func (l *Loader) GetScreenshot(config *ScreenshotConfig) {
 			for i := range resultHandlers {
 				resultHandlers[i](nil)
 			}
+			page.DeleteLater()
 			return
 		}
 		// handle the QWebFrame
@@ -262,29 +262,30 @@ func (l *Loader) GetScreenshot(config *ScreenshotConfig) {
 			webFrameHandlers[i](page.MainFrame())
 		}
 		image := gui.NewQImage3(width, height, gui.QImage__Format_RGB888)
-		defer image.DestroyQImageDefault()
 		painter := gui.NewQPainter()
-		defer painter.DestroyQPainter()
 		qPaintDevice := gui.NewQPaintDeviceFromPointer(image.Pointer())
-		defer qPaintDevice.DestroyQPaintDeviceDefault()
 		painter.Begin(qPaintDevice)
 
 		setPainterRenderHint(painter)
 
 		qRegion := gui.NewQRegion2(0, 0, width, height, gui.QRegion__Rectangle)
-		defer qRegion.DestroyQRegion()
 		page.MainFrame().Render(painter, qRegion)
 		painter.End()
 
 		buff := core.NewQBuffer(nil)
-		defer buff.DeleteLater()
 		buff.Open(core.QIODevice__ReadWrite)
 		image.Save2(buff, imgFormat, imgQuality)
 		data := []byte(buff.Data().ConstData())
+		qRegion.DestroyQRegion()
+		painter.DestroyQPainter()
+		qPaintDevice.DestroyQPaintDeviceDefault()
+		image.DestroyQImageDefault()
+		buff.DeleteLater()
 		// synchronous call the finish callback function
 		for i := range resultHandlers {
 			resultHandlers[i](data)
 		}
+		page.DeleteLater()
 	})
 }
 
@@ -310,6 +311,10 @@ func (l *Loader) Screenshot(config *ScreenshotConfig) []byte {
 // Exec execute qt app main event loop
 func (l *Loader) Exec() {
 	l.app.Exec()
+}
+
+func (l *Loader) Exit(retCode int) {
+	l.app.Exit(retCode)
 }
 
 // ClearCaches clear webkit memory cache
