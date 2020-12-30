@@ -65,6 +65,16 @@ steps:
     - name: cache
       path: /cache
 
+- name: dingtalk
+  image: lddsb/drone-dingtalk-message
+  settings:
+    token: 
+      from_secret: dingtalk_token
+    type: markdown
+    message_color: true
+    message_pic: true
+    sha_link: true
+
 # 声明并挂载缓存文件夹，宿主机的路径为 /tmp/cache，需要设置 Project settings 为 Trusted
 volumes:
 - name: cache
