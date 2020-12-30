@@ -26,8 +26,7 @@ steps:
   commands:
     # 恢复缓存目录
     - mkdir -p ./golang-cache
-    - ls ~
-    - cd ./golang-cache && cp -r * ~/work/src/ && cd ..
+    - cd ./golang-cache && mkdir -p github.com && cp -r * ~/work/src/ && cd ..
     # 构建
     - go get -d -v github.com/OneOfOne/xxhash
     - go get -d -v github.com/corona10/goimagehash
@@ -37,6 +36,7 @@ steps:
     - pwd
     - cp * ~/work/src/github.com/akkuman/webkit-screenshot/
     - cd ~/work/src/github.com/akkuman/webkit-screenshot
+    - pwd
     - qtdeploy build desktop main.go
     - tar zcvf webkit-screenshot.tar.gz ~/work/src/github.com/akkuman/webkit-screenshot/deploy
     - cp webkit-screenshot.tar.gz /drone/src/
