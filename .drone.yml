@@ -25,9 +25,9 @@ steps:
   image: therecipe/qt:linux_fedora
   commands:
     # 恢复缓存目录
-    - mkdir -p .golang-cache
+    - mkdir -p ./golang-cache
     - ls
-    - cp -r .golang-cache/* ${HOME}/work/src/
+    - cp -r golang-cache/* ${HOME}/work/src/
     # 构建
     - go get -d -v github.com/OneOfOne/xxhash
     - go get -d -v github.com/corona10/goimagehash
@@ -42,8 +42,7 @@ steps:
     - cp webkit-screenshot.tar.gz /drone/src/
     - cd /drone/src
     # 创建缓存目录
-    - mkdir .golang-cache
-    - cp -r ${HOME}/work/src/* .golang-cache/
+    - cp -r ${HOME}/work/src/* ./golang-cache/
 
 - name: gitea_release
   image: plugins/gitea-release
