@@ -36,7 +36,7 @@ steps:
     - go get -d -v gorm.io/driver/sqlite
     - mkdir -p ~/work/src/github.com/akkuman/webkit-screenshot
     - pwd
-    - cp * ~/work/src/github.com/akkuman/webkit-screenshot/
+    - cp -r * ~/work/src/github.com/akkuman/webkit-screenshot/
     - cd ~/work/src/github.com/akkuman/webkit-screenshot
     - pwd
     - qtdeploy build desktop main.go
