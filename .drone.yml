@@ -28,6 +28,8 @@ steps:
     - mkdir -p ./golang-cache
     - cd ./golang-cache && mkdir -p github.com && cp -r * ~/work/src/ && cd ..
     # 构建
+    - git config --global http.proxy 'socks5://10.20.56.78:10808'
+    - git config --global https.proxy 'socks5://10.20.56.78:10808'
     - go get -d -v github.com/OneOfOne/xxhash
     - go get -d -v github.com/corona10/goimagehash
     - go get -d -v gorm.io/gorm
