@@ -6,9 +6,6 @@ name: webkit-screenshot
 workspace:
   path: /drone/src
 
-environment:
-  QT_WEBKIT: true
-
 steps:
 
 - name: restore-cache # 把之前缓存好的数据取出
@@ -39,7 +36,7 @@ steps:
     - cp -r * ~/work/src/github.com/akkuman/webkit-screenshot/
     - cd ~/work/src/github.com/akkuman/webkit-screenshot
     - pwd
-    - qtdeploy build desktop main.go
+    - bash -c "QT_WEBKIT=true qtdeploy build desktop main.go"
     - tar zcvf webkit-screenshot.tar.gz ~/work/src/github.com/akkuman/webkit-screenshot/deploy
     - cp webkit-screenshot.tar.gz /drone/src/
     - cd /drone/src
