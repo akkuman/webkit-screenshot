@@ -37,7 +37,7 @@ steps:
     - cd ~/work/src/github.com/akkuman/webkit-screenshot
     - pwd
     - ls
-    - bash -c "QT_WEBKIT=true qtdeploy build desktop main.go"
+    - bash -c "QT_WEBKIT=true qtdeploy build linux main.go"
     - tar zcvf webkit-screenshot.tar.gz ~/work/src/github.com/akkuman/webkit-screenshot/deploy
     - cp webkit-screenshot.tar.gz /drone/src/
     - cd /drone/src
