@@ -39,9 +39,9 @@ steps:
     - pwd
     - ls
     - bash -c "QT_WEBKIT=true qtdeploy build linux main.go"
-    - tar zcvf webkit-screenshot.tar.gz ~/work/src/github.com/akkuman/webkit-screenshot/deploy
-    - cp webkit-screenshot.tar.gz /drone/src/
+    - tar zcvPf /drone/src/webkit-screenshot.tar.gz ~/work/src/github.com/akkuman/webkit-screenshot/deploy
     - cd /drone/src
+    - pwd
     # 创建缓存目录
     - cp -r ~/work/src/* ./golang-cache/
 
