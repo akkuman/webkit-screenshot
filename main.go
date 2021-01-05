@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"flag"
 	"fmt"
 	"image/jpeg"
 	"io"
@@ -17,6 +16,8 @@ import (
 
 	"github.com/OneOfOne/xxhash"
 	"github.com/corona10/goimagehash"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 
 	"gorm.io/gorm"
 
@@ -28,52 +29,57 @@ import (
 // DB gorm DB instance
 var DB *gorm.DB
 
-var (
-	cliDB        string
-	clifpath     string
-	cliThreadNum int
-	cliTaskID    string
-)
-
 func init() {
-	flag.StringVar(&cliDB, "db", "", "output db")
-	flag.StringVar(&clifpath, "file", "", "urls file which will be execute website screenshot")
-	flag.IntVar(&cliThreadNum, "thread", 30, "thread number")
-	flag.StringVar(&cliTaskID, "taskid", "", "id of task")
-	flag.Parse()
+	viper.SetConfigName("config")
+	viper.SetConfigType("toml")
+	viper.AddConfigPath(".")
+	err := viper.ReadInConfig()
+	pflag.Int("thread", 30, "thread number")
+	pflag.String("file", "", "urls file which will be execute website screenshot")
+	pflag.String("taskid", "", "id of task")
+	pflag.String("db.dialect", "sqlite3", "database type")
+	pflag.String("db.dsn", "res.db", "database dsn")
+	viper.BindPFlags(pflag.CommandLine)
+	if err != nil {
+		panic(err)
+	}
+	pflag.Parse()
 }
 
 func main() {
 	var err error
-	DB, err = InitDb(cliDB)
+	DB, err = InitDb()
 	if err != nil {
 		panic(err)
 	}
 	loader := wk.NewLoader()
 
-	urls, err := getURLs(clifpath)
+	urls, err := getURLs(viper.GetString("file"))
 	if err != nil {
 		panic(err)
 	}
 	amount := len(urls)
-	if cliThreadNum <= 0 {
-		cliThreadNum = amount
+	threadNum := viper.GetInt("thread")
+	taskid := viper.GetString("taskid")
+	fmt.Println(threadNum)
+	if threadNum <= 0 {
+		threadNum = amount
 	}
 	go func() {
 		wg := new(sync.WaitGroup)
-		for i := 0; i < int(math.Ceil(float64(amount)/float64(cliThreadNum))); i++ {
-			start := i * cliThreadNum
-			end := (i + 1) * cliThreadNum
+		for i := 0; i < int(math.Ceil(float64(amount)/float64(threadNum))); i++ {
+			start := i * threadNum
+			end := (i + 1) * threadNum
 			if end > amount {
 				end = amount
 			}
 			wg.Add(end - start)
 			for _, url := range urls[start:end] {
 				screenshotItem := new(Screenshot)
-				screenshotItem.TaskID = cliTaskID
+				screenshotItem.TaskID = taskid
 				screenshotItem.URL = url
 				screenshotItem.URLXxhash = int64(getXXHash(url))
-				screenshotItem.TaskIDXxhash = int64(getXXHash(cliTaskID))
+				screenshotItem.TaskIDXxhash = int64(getXXHash(taskid))
 
 				config := wk.NewScreenshotConfig(url).WithTimeout(30 * time.Second)
 				config.RegisterWebFrameHandler(

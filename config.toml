@@ -1,0 +1,6 @@
+thread = 30
+file = "urls.txt"
+
+[db]
+dialect = "sqlite3"
+dsn = "res.db"

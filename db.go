@@ -3,6 +3,8 @@ package main
 import (
 	"time"
 
+	"github.com/spf13/viper"
+	"gorm.io/driver/mysql"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -23,12 +25,20 @@ type Screenshot struct {
 }
 
 // InitDb initialize database instance
-func InitDb(dbpath string) (*gorm.DB, error) {
-	db, err := gorm.Open(sqlite.Open(dbpath), &gorm.Config{})
+func InitDb() (db *gorm.DB, err error) {
+	dsn := viper.GetString("db.dsn")
+	switch viper.GetString("db.dialect") {
+	case "mysql":
+		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	case "sqlite3":
+		db, err = gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	default:
+		db, err = gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	}
 	if err != nil {
-		return db, err
+		return
 	}
 	db.Debug()
 	db.Debug().AutoMigrate(&Screenshot{})
-	return db, nil
+	return
 }
