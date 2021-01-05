@@ -4,7 +4,8 @@ name: webkit-screenshot
 
 # 自定义工作区
 workspace:
-  path: /drone/src
+  base: /drone/src
+  path: work
 
 steps:
 
@@ -39,8 +40,8 @@ steps:
     - pwd
     - ls
     - bash -c "QT_WEBKIT=true qtdeploy build linux main.go"
-    - tar zcvPf /drone/src/webkit-screenshot.tar.gz ~/work/src/github.com/akkuman/webkit-screenshot/deploy
-    - cd /drone/src
+    - tar zcvPf /drone/src/work/webkit-screenshot.tar.gz ~/work/src/github.com/akkuman/webkit-screenshot/deploy
+    - cd /drone/src/work
     - pwd
     # 创建缓存目录
     - cp -r ~/work/src/* ./golang-cache/
@@ -51,7 +52,7 @@ steps:
     api_key:
       from_secret: gitea_token
     base_url: http://git.ah-strategy.online
-    files: /drone/src/webkit-screenshot.tar.gz
+    files: /drone/src/work/webkit-screenshot.tar.gz
     title: webkit-screenshot
   when:
     event: tag
