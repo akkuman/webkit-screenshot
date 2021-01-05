@@ -22,6 +22,7 @@ steps:
   image: therecipe/qt:linux_fedora
   commands:
     # 恢复缓存目录
+    - go env -w GOPROXY=https://goproxy.cn,direct
     - mkdir -p ./golang-cache
     - cd ./golang-cache && mkdir -p github.com && cp -r * ~/work/src/ && cd ..
     # 构建
