@@ -29,6 +29,7 @@ steps:
     # 构建
     - git config --global http.proxy 'socks5://10.20.56.78:10808'	
     - git config --global https.proxy 'socks5://10.20.56.78:10808'
+    - git clone https://github.com/golang/text.git ~/work/src/golang.org/x/text
     - go get -d -v github.com/OneOfOne/xxhash
     - go get -d -v github.com/corona10/goimagehash
     - go get -d -v gorm.io/gorm
