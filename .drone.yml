@@ -45,7 +45,7 @@ steps:
     - ls
     - bash -c "QT_WEBKIT=true qtdeploy build linux main.go"
     - tar zcvPf /drone/src/work/webkit-screenshot.tar.gz ~/work/src/github.com/akkuman/webkit-screenshot/deploy
-    - cd /drone/src/work
+    - cd ~/work/src/
     - pwd
     # 创建缓存目录（除了docker的therecipe/qt库）
     - cp -r `ls ~/work/src/ | grep -v therecipe | xargs` ./golang-cache/
