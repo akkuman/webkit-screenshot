@@ -48,7 +48,10 @@ steps:
     - cd ~/work/src/
     - pwd
     # 创建缓存目录（除了docker的therecipe/qt库）
-    - cp -r `ls ~/work/src/ | grep -v therecipe | xargs` ./golang-cache/
+    - cp -r `ls ~/work/src/github.com/ | grep -v therecipe | xargs` /drone/src/work/golang-cache/github.com/
+    - cp -r `ls ~/work/src/ | grep -v github.com | xargs` /drone/src/work/golang-cache/
+  when:
+    event: tag
 
 - name: gitea_release
   image: plugins/gitea-release
