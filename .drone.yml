@@ -1,6 +1,8 @@
 kind: pipeline
 type: docker
 name: webkit-screenshot
+when:
+  event: tag
 
 # 自定义工作区
 workspace:
@@ -50,7 +52,8 @@ steps:
     - tar zcvf /drone/src/work/webkit-screenshot.tar.gz deploy
     - cd ~/work/src/
     - pwd
-    # 创建缓存目录（除了docker的therecipe/qt库）
+    # 清理创建缓存目录（除了docker的therecipe/qt库）
+    - rm -rf ~/work/src/github.com/akkuman/webkit-screenshot
     - cd github.com && cp -r `ls ~/work/src/github.com/ | grep -v therecipe | xargs` /drone/src/work/golang-cache/github.com/ && cd ..
     - cp -r `ls ~/work/src/ | grep -v github.com | xargs` /drone/src/work/golang-cache/
   when:
