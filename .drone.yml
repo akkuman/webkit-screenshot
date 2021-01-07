@@ -49,6 +49,7 @@ steps:
     - pwd
     - ls
     - bash -c "QT_WEBKIT=true qtdeploy build linux main.go"
+    - cp /drone/src/work/config.toml deploy/linux
     - tar zcvf /drone/src/work/webkit-screenshot.tar.gz deploy
     - cd ~/work/src/
     - pwd
