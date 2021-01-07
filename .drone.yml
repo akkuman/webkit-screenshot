@@ -24,7 +24,6 @@ steps:
   commands:
     # 搭建编译坏境
     - apt install -y fontconfig ca-certificates xz-utils freeglut3 libglib2.0-0 libxcomposite1 libxrender1 libxslt1.1 libgstreamer-plugins-base1.0-0
-    - curl -O -L https://github.com/annulen/webkit/releases/download/qtwebkit-5.212.0-alpha2/qtwebkit-5.212.0_alpha2-qt59-linux-x64.tar.xz
     - tar xvf qtwebkit-5.212.0_alpha2-qt59-linux-x64.tar.xz && cd qtwebkit-5.212.0_alpha2-qt59-linux-x64 && cp -r * /opt/Qt5.13.0/5.13.0/gcc_64/ && cd ..
     # 恢复缓存目录
     - go env -w GOPROXY=https://goproxy.cn,direct
@@ -48,7 +47,7 @@ steps:
     - pwd
     - ls
     - bash -c "QT_WEBKIT=true qtdeploy build linux main.go"
-    - tar zcvPf /drone/src/work/webkit-screenshot.tar.gz ~/work/src/github.com/akkuman/webkit-screenshot/deploy
+    - tar zcvf /drone/src/work/webkit-screenshot.tar.gz deploy
     - cd ~/work/src/
     - pwd
     # 创建缓存目录（除了docker的therecipe/qt库）
